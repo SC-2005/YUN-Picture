@@ -9,6 +9,7 @@ import cn.hutool.http.Method;
 import com.songcan.yupicturebackend.exception.BusinessException;
 import com.songcan.yupicturebackend.exception.ErrorCode;
 import com.songcan.yupicturebackend.exception.ThrowUtils;
+import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -20,6 +21,7 @@ import java.util.List;
 /**
  * Url图片上传
  */
+@Service
 public class UrlPictureUpload extends PictureUploadTemplate {
     @Override
     protected String getOriginalFilename(Object inputSource) {
