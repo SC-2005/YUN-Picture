@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.songcan.yupicturebackend.model.dto.picture.PictureQueryRequest;
 import com.songcan.yupicturebackend.model.dto.picture.PictureReviewRequest;
+import com.songcan.yupicturebackend.model.dto.picture.PictureUploadByBatchRequest;
 import com.songcan.yupicturebackend.model.dto.picture.PictureUploadRequest;
 import com.songcan.yupicturebackend.model.dto.user.UserQueryRequest;
 import com.songcan.yupicturebackend.model.entity.Picture;
@@ -82,4 +83,26 @@ public interface PictureService extends IService<Picture> {
      * @param loginUser
      */
     void fillReviewParams(Picture picture,User loginUser);
+
+    /**
+     * 按搜索词自动推断图片分类
+     *
+     * @param searchText 搜索词
+     * @return 推断出的分类；searchText 为空时返回 null
+     */
+    String autoCategorize(String searchText);
+
+    /**
+     * 批量抓取图片
+     * @param pictureUploadByBatchRequest
+     * @param loginUser
+     * @return
+     */
+    Integer UploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest, User loginUser);
+
+    /**
+     * 清理图片文件
+     * @param oldPicture
+     */
+    void clearPictureFile(Picture oldPicture);
 }
