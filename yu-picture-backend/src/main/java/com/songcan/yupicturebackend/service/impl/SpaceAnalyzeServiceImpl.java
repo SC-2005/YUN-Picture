@@ -126,8 +126,15 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
         //查询
         return pictureService.getBaseMapper().selectMaps(queryWrapper).stream().map(result -> {
             String category = (String) result.get("category");
-            long count = (Long) result.get("count");
-            Long totalSize = (Long) result.get("totalSize");
+            // 注意：聚合函数返回的类型和列本身的类型不一样，不能直接 (Long) 强转
+            //   count(*)             -> BIGINT   -> Long
+            //   sum(picSize)         -> DECIMAL  -> BigDecimal（MySQL 对 BIGINT 求和会提升为 DECIMAL）
+            // 直接 (Long) 强转 totalSize 会抛 ClassCastException: BigDecimal cannot be cast to Long，
+            // 所以统一按 Number 取值再转 longValue
+            long count = ((Number) result.get("count")).longValue();
+            // 分组内 picSize 全为 null 时 sum 返回 null，这里兜底 0
+            Object totalSizeObj = result.get("totalSize");
+            long totalSize = totalSizeObj == null ? 0L : ((Number) totalSizeObj).longValue();
             return new SpaceCategoryAnalyzeResponse(category, count, totalSize);
         }).collect(Collectors.toList());
     }
