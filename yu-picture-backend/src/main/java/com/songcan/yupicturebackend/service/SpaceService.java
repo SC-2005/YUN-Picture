@@ -20,6 +20,7 @@ public interface SpaceService extends IService<Space> {
 
     /**
      * 创建空间
+     *
      * @param spaceAddRequest
      * @param loginUser
      * @return
@@ -31,7 +32,7 @@ public interface SpaceService extends IService<Space> {
      *
      * @param space
      */
-    void validSpace(Space space,boolean add);
+    void validSpace(Space space, boolean add);
 
     /**
      * 删除空间（连同空间内的图片一起删）
@@ -61,6 +62,7 @@ public interface SpaceService extends IService<Space> {
 
     /**
      * 获取查询对象
+     *
      * @param spaceQueryRequest
      * @return
      */
@@ -69,7 +71,15 @@ public interface SpaceService extends IService<Space> {
 
     /**
      * 根据空间级别填充空间对象
+     *
      * @param space
      */
     void fileSpaceBySpaceLevel(Space space);
+
+    /**
+     * 校验空间权限
+     * @param loginUser
+     * @param space
+     */
+    void checkSpaceAuth(User loginUser, Space space);
 }

@@ -1,12 +1,6 @@
 package com.songcan.yupicturebackend.controller;
 
-import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.util.RandomUtil;
-import cn.hutool.json.JSONUtil;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.songcan.yupicturebackend.annotation.AuthCheck;
 import com.songcan.yupicturebackend.common.BaseResponse;
 import com.songcan.yupicturebackend.common.DeleteRequest;
@@ -19,26 +13,18 @@ import com.songcan.yupicturebackend.model.dto.space.*;
 import com.songcan.yupicturebackend.model.entity.Space;
 import com.songcan.yupicturebackend.model.entity.User;
 import com.songcan.yupicturebackend.model.enums.SpaceLevelEnum;
-import com.songcan.yupicturebackend.model.vo.CursorPage;
 import com.songcan.yupicturebackend.model.vo.SpaceVO;
 import com.songcan.yupicturebackend.service.SpaceService;
 import com.songcan.yupicturebackend.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -78,9 +64,7 @@ public class SpaceController {
         Space oldSpace = spaceService.getById(id);
         ThrowUtils.throwIf(oldSpace == null, ErrorCode.NOT_FOUND_ERROR);
         // 仅本人或者管理员可删除
-        if (!oldSpace.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
+        spaceService.checkSpaceAuth(loginUser, oldSpace);
         // 操作数据库：空间和空间内的图片一起删（连带清理对象存储上的文件）
         spaceService.deleteSpace(id);
         return ResultUtils.success(true);
@@ -198,9 +182,7 @@ public class SpaceController {
         Space oldSpace = spaceService.getById(id);
         ThrowUtils.throwIf(oldSpace == null, ErrorCode.NOT_FOUND_ERROR);
         // 仅本人或管理员可编辑
-        if (!oldSpace.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
+        spaceService.checkSpaceAuth(loginUser, oldSpace);
         // 操作数据库
         boolean result = spaceService.updateById(space);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
