@@ -4,6 +4,13 @@
       <h2>空间管理</h2>
       <a-space>
         <a-button type="primary" href="/add_space" target="_blank">+ 创建空间</a-button>
+        <!-- 分析入口：带查询范围参数跳到分析页，两种范围都需要管理员权限（后端已校验） -->
+        <a-button type="primary" ghost href="/space_analyze?queryPublic=1" target="_blank">
+          分析公共图库
+        </a-button>
+        <a-button type="primary" ghost href="/space_analyze?queryAll=1" target="_blank">
+          分析全空间
+        </a-button>
       </a-space>
     </a-flex>
     <div style="margin-bottom: 16px" />
@@ -58,6 +65,10 @@
         <template v-else-if="column.key === 'action'">
           <a-space wrap>
             <a-button type="link" @click="doEdit(record.id)">编辑</a-button>
+            <!-- 直接分析某一个空间：record.id 是雪花 id，模板里已经是字符串形态，拼 URL 不丢精度 -->
+            <a-button type="link" :href="`/space_analyze?spaceId=${record.id}`" target="_blank">
+              分析
+            </a-button>
             <a-button type="link" danger @click="doDelete(record)">删除</a-button>
           </a-space>
         </template>

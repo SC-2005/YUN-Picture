@@ -11,6 +11,7 @@ import SpaceManagePage from '@/pages/admin/SpaceManagePage.vue'
 import AddSpacePage from '@/pages/AddSpacePage.vue'
 import MySpacePage from '@/pages/MySpacePage.vue'
 import SpaceDetailPage from '@/pages/SpaceDetailPage.vue'
+import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -96,6 +97,13 @@ const router = createRouter({
       component: SpaceDetailPage,
       // 把路由参数 id 作为 props 传给页面组件
       props: true,
+    },
+    {
+      path: '/space_analyze',
+      name: '空间分析',
+      component: SpaceAnalyzePage,
+      // 不限制 access：普通用户也能分析自己的空间；
+      // 其中 queryAll / queryPublic 两个范围由后端校验管理员，前端只负责藏掉排行图表
     },
     {
       path: '/about',

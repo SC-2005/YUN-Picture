@@ -15,6 +15,17 @@
         <!-- 批量编辑只对私有空间开放：后端按 spaceId 校验空间归属，非创建人调用会被拒 -->
         <a-button v-if="isOwner" :icon="h(EditOutlined)" @click="doBatchEdit">批量编辑</a-button>
         <a-button v-if="isOwner" @click="doEditSpace">编辑空间</a-button>
+        <!-- 空间分析：带上当前空间 id 跳到分析页，新开窗口看图表，不打断当前浏览的图片列表。
+             spaceIdParam 是字符串形态的雪花 id（toApiId），拼到 URL 里不会丢精度 -->
+        <a-button
+          type="primary"
+          ghost
+          :icon="h(BarChartOutlined)"
+          :href="`/space_analyze?spaceId=${spaceIdParam}`"
+          target="_blank"
+        >
+          空间分析
+        </a-button>
         <a-tooltip
           :title="`占用空间 ${formatSize(space.totalSize)} / ${formatSize(space.maxSize)}`"
         >
@@ -78,7 +89,7 @@
 import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { EditOutlined } from '@ant-design/icons-vue'
+import { BarChartOutlined, EditOutlined } from '@ant-design/icons-vue'
 import { ColorPicker } from 'vue3-colorpicker'
 import 'vue3-colorpicker/style.css'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
