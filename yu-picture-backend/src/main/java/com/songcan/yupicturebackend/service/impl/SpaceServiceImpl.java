@@ -9,18 +9,22 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.songcan.yupicturebackend.exception.BusinessException;
 import com.songcan.yupicturebackend.exception.ErrorCode;
 import com.songcan.yupicturebackend.exception.ThrowUtils;
+import com.songcan.yupicturebackend.manager.sharding.DynamicShardingManager;
+import com.songcan.yupicturebackend.mapper.SpaceMapper;
 import com.songcan.yupicturebackend.model.dto.space.SpaceAddRequest;
 import com.songcan.yupicturebackend.model.dto.space.SpaceQueryRequest;
 import com.songcan.yupicturebackend.model.entity.Picture;
 import com.songcan.yupicturebackend.model.entity.Space;
+import com.songcan.yupicturebackend.model.entity.SpaceUser;
 import com.songcan.yupicturebackend.model.entity.User;
 import com.songcan.yupicturebackend.model.enums.SpaceLevelEnum;
-import com.songcan.yupicturebackend.model.vo.PictureVO;
+import com.songcan.yupicturebackend.model.enums.SpaceRoleEnum;
+import com.songcan.yupicturebackend.model.enums.SpaceTypeEnum;
 import com.songcan.yupicturebackend.model.vo.SpaceVO;
 import com.songcan.yupicturebackend.model.vo.UserVO;
 import com.songcan.yupicturebackend.service.PictureService;
 import com.songcan.yupicturebackend.service.SpaceService;
-import com.songcan.yupicturebackend.mapper.SpaceMapper;
+import com.songcan.yupicturebackend.service.SpaceUserService;
 import com.songcan.yupicturebackend.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -43,31 +47,33 @@ import java.util.stream.Collectors;
 public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         implements SpaceService {
 
-    /**
-     * 删除空间时，每批处理的图片数量
-     *
-     * 一个空间最多能放 1 万张图，一条 SQL 全删的话事务太大（锁、undo、binlog 都顶不住），
-     * 分批就是拿「多几条 SQL」换「单次事务小」
-     */
-    private static final int DELETE_PICTURE_BATCH_SIZE = 100;
-
     @Resource
     private UserService userService;
 
-    /**
-     * 图片服务
-     *
-     * 这里必须加 @Lazy：PictureServiceImpl 要注入 SpaceService 来更新空间额度，
-     * 这里又要注入它来删空间下的图片，两边互为依赖。Spring Boot 2.6 之后默认禁止循环引用
-     * （spring.main.allow-circular-references=false），不加 @Lazy 启动就会直接报循环依赖。
-     * 加 @Lazy 后注入的是代理对象，真正用到时才去容器里取，循环就被打断了。
-     */
     @Lazy
     @Resource
     private PictureService pictureService;
 
     @Resource
     private TransactionTemplate transactionTemplate;
+
+    @Resource
+    private SpaceUserService spaceUserService;
+
+    /**
+     * 删除空间时，每批处理的图片数量
+     */
+    private static final int DELETE_PICTURE_BATCH_SIZE = 100;
+
+    /**
+     * 为了方便部署，这里不使用动态分表管理器
+     */
+    //@Lazy
+    //@Resource
+    //private DynamicShardingManager dynamicShardingManager;
+
+
+
 
     /**
      * 创建空间
@@ -82,11 +88,14 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         //转换为实体类
         Space space = new Space();
         BeanUtils.copyProperties(spaceAddRequest, space);
-        if (StrUtil.isBlank(space.getSpaceName())){
+        if (StrUtil.isBlank(space.getSpaceName())) {
             space.setSpaceName("默认空间");
         }
-        if (space.getSpaceLevel() == null){
+        if (space.getSpaceLevel() == null) {
             space.setSpaceLevel(SpaceLevelEnum.COMMON.getValue());
+        }
+        if(space.getSpaceType() == null){
+            space.setSpaceType(SpaceTypeEnum.PRIVATE.getValue());
         }
         //填充容量大小
         this.fileSpaceBySpaceLevel(space);
@@ -95,23 +104,38 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         // 3. 校验权限，非管理员只能创建普通级别的空间
         Long userId = loginUser.getId();
         space.setUserId(userId);
-        if (SpaceLevelEnum.COMMON.getValue() != space.getSpaceLevel() && !userService.isAdmin(loginUser)){
+        if (SpaceLevelEnum.COMMON.getValue() != space.getSpaceLevel() && !userService.isAdmin(loginUser)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限创建指定级别的空间");
         }
-        // 4. 控制同一用户只能创建一个私有空间
+        // 4. 控制同一用户只能创建一个私有空间,以及一个团队空间
         String lock = String.valueOf(userId).intern();
         synchronized (lock) {
             Long newSpaceId = transactionTemplate.execute(status -> {
-                boolean exists = this.lambdaQuery().eq(Space::getUserId, userId).exists();
-                ThrowUtils.throwIf(exists, ErrorCode.OPERATION_ERROR, "每个用户仅能有一个私有空间");
+                boolean exists = this.lambdaQuery()
+                        .eq(Space::getUserId, userId)
+                        .eq(Space::getSpaceType,space.getSpaceType())
+                        .exists();
+                ThrowUtils.throwIf(exists, ErrorCode.OPERATION_ERROR, "每个用户每一类空间只能创建一个");
                 // 写入数据库
                 boolean result = this.save(space);
-                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR,"保存空间到数据库失败");
+                //创建成功后,如果是团队空间,关联新增团队记录
+                if(SpaceTypeEnum.TEAM.getValue() == space.getSpaceType()){
+                    SpaceUser spaceUser = new SpaceUser();
+                    spaceUser.setSpaceId(space.getId());
+                    spaceUser.setUserId(userId);
+                    spaceUser.setSpaceRole(SpaceRoleEnum.ADMIN.getValue());
+                    result = spaceUserService.save(spaceUser);
+                    ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "创建团队成员记录失败");
+                }
                 // 返回新写入的数据 id
                 return space.getId();
             });
+            ThrowUtils.throwIf(newSpaceId == null, ErrorCode.OPERATION_ERROR, "创建空间失败");
+            // 创建分表
+            //dynamicShardingManager.createSpacePictureTable(space);
             // 返回结果是包装类，可以做一些处理
-            return Optional.ofNullable(newSpaceId).orElse(-1L);
+            return newSpaceId;
         }
     }
 
@@ -125,12 +149,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         // 校验空间是否存在
         Space space = this.getById(id);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-        // 空间是图片的容器，容器没了就没必要留着里面的图：
-        // 列表接口一律带上 spaceId 查询，空间删掉后这些图在任何一个页面上都查不出来，
-        // 却仍然占着对象存储的容量（要花钱）和数据库的行
         List<Picture> deletedPictureList = new ArrayList<>();
-        // 事务里只做数据库操作。对象存储上的文件放到事务提交后再清 ——
-        // 删文件失败不该把「空间已删除」这个已经发生的事实回滚掉（和 deletePicture 同一个取舍）
         transactionTemplate.execute(status -> {
             // 分批查 + 分批删：每批 100 条，避免一次 UPDATE 上万行
             while (true) {
@@ -151,6 +170,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
             return true;
         });
+        // 删除分表
+        //dynamicShardingManager.dropSpacePictureTable(space);
         // 清文件：单张失败不影响其它图片，也不需要回滚数据库，记日志即可
         for (Picture picture : deletedPictureList) {
             try {
@@ -174,7 +195,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         String spaceName = space.getSpaceName();
         Integer spaceLevel = space.getSpaceLevel();
         SpaceLevelEnum spaceLevelEnum = SpaceLevelEnum.getEnumByValue(spaceLevel);
-
+        Integer spaceType = space.getSpaceType();
+        SpaceTypeEnum spaceTypeEnum = SpaceTypeEnum.getEnumByValue(spaceType);
         //创建时校验
         if (add) {
             // 创建空间时,空间名称不能为空
@@ -185,6 +207,10 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
             if (spaceLevel == null) {
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间级别不能为空");
             }
+            //空间类别不能为空
+            if (spaceType == null) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间类别不能为空");
+            }
         }
         //修改数据时,空间名称不能为空
         if (StrUtil.isNotBlank(spaceName) && spaceName.length() > 30) {
@@ -193,6 +219,9 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         //修改数据时对空间级别进行校验
         if (spaceLevel != null && spaceLevelEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间级别不存在");
+        }
+        if (spaceType != null && spaceTypeEnum == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间类别不存在");
         }
     }
 
@@ -266,6 +295,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         Long userId = spaceQueryRequest.getUserId();
         String spaceName = spaceQueryRequest.getSpaceName();
         Integer spaceLevel = spaceQueryRequest.getSpaceLevel();
+        Integer spaceType = spaceQueryRequest.getSpaceType();
         String sortField = spaceQueryRequest.getSortField();
         String sortOrder = spaceQueryRequest.getSortOrder();
         //拼接查询条件
@@ -273,6 +303,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         queryWrapper.eq(ObjUtil.isNotEmpty(userId), "userId", userId);
         queryWrapper.like(StrUtil.isNotBlank(spaceName), "spaceName", spaceName);
         queryWrapper.eq(ObjUtil.isNotEmpty(spaceLevel), "spaceLevel", spaceLevel);
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceType), "spaceType", spaceType);
         //排序
         queryWrapper.orderBy(StrUtil.isNotEmpty(sortField), sortOrder.equals("ascend"), sortField);
         return queryWrapper;
@@ -300,6 +331,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
     /**
      * 校验空间权限
+     *
      * @param loginUser
      * @param space
      */

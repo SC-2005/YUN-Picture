@@ -9,6 +9,8 @@ import com.songcan.yupicturebackend.constant.UserConstant;
 import com.songcan.yupicturebackend.exception.BusinessException;
 import com.songcan.yupicturebackend.exception.ErrorCode;
 import com.songcan.yupicturebackend.exception.ThrowUtils;
+import com.songcan.yupicturebackend.manager.auth.SpaceUserAuthManager;
+import com.songcan.yupicturebackend.manager.sharding.DynamicShardingManager;
 import com.songcan.yupicturebackend.model.dto.space.*;
 import com.songcan.yupicturebackend.model.entity.Space;
 import com.songcan.yupicturebackend.model.entity.User;
@@ -36,6 +38,12 @@ public class SpaceController {
 
     @Resource
     private SpaceService spaceService;
+
+    @Resource
+    private SpaceUserAuthManager spaceUserAuthManager;
+
+    //@Resource
+    //private DynamicShardingManager dynamicShardingManager;
 
 
     @PostMapping("/add")
@@ -97,6 +105,7 @@ public class SpaceController {
         // 操作数据库
         boolean result = spaceService.updateById(space);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        //dynamicShardingManager.createSpacePictureTable(spaceService.getById(id));
         return ResultUtils.success(true);
     }
 
@@ -123,8 +132,12 @@ public class SpaceController {
         // 查询数据库
         Space space = spaceService.getById(id);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
+        SpaceVO spaceVO = spaceService.getSpaceVO(space, request);
+        User loginUser = userService.getLoginUser(request);
+        List<String> permissionList = spaceUserAuthManager.getPermissionList(space, loginUser);
+        spaceVO.setPermissionList(permissionList);
         // 获取封装类
-        return ResultUtils.success(spaceService.getSpaceVO(space, request));
+        return ResultUtils.success(spaceVO);
     }
 
     /**
@@ -191,6 +204,7 @@ public class SpaceController {
 
     /**
      * 获取空间等级列表,用于前端展示
+     *
      * @return
      */
     @GetMapping("/list/level")

@@ -60,6 +60,7 @@
         show-op
         :can-edit="isOwner"
         :can-delete="isOwner"
+        :can-share="isOwner"
         @reload="onReload"
       />
       <!-- 分页 -->

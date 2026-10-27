@@ -91,7 +91,7 @@ const avatarStyle = computed(() => {
   }
 })
 
-// 顶部菜单：首页 / 创建图片 / 编程导航人人可见，「图片管理 / 用户管理」仅管理员可见
+// 顶部菜单：首页 / 创建图片 / 开源地址人人可见，「图片管理 / 用户管理」仅管理员可见
 // （这两个页面对应的后端接口都带 @AuthCheck(mustRole = ADMIN_ROLE)，普通用户点了也是 403）
 // 创建图片不限制角色：后端 /picture/upload 只要求登录，
 // 非管理员上传的图片会进入待审核，审核通过前不出现在首页
@@ -128,8 +128,12 @@ const items = computed<MenuProps['items']>(() => [
     : []),
   {
     key: 'others',
-    label: h('a', { href: 'https://www.codefather.cn', target: '_blank' }, '编程导航'),
-    title: '编程导航',
+    label: h(
+      'a',
+      { href: 'https://github.com/SC-2005/YU-Picture', target: '_blank', rel: 'noopener noreferrer' },
+      '开源地址',
+    ),
+    title: '开源地址',
   },
 ])
 

@@ -31,6 +31,11 @@ public class Space {
     private Integer spaceLevel;
 
     /**
+     * 空间类型:0表示私有,1表示团队
+     */
+    private Integer spaceType;
+
+    /**
      * 空间图片的最大总大小
      */
     private Long maxSize;

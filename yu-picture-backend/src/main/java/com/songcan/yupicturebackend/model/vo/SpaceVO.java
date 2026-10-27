@@ -1,10 +1,13 @@
 package com.songcan.yupicturebackend.model.vo;
 
 import com.songcan.yupicturebackend.model.entity.Space;
+
+import java.util.ArrayList;
 import java.util.Date;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
 import java.io.Serializable;
+import java.util.List;
 
 @Data
 public class SpaceVO implements Serializable {
@@ -22,6 +25,11 @@ public class SpaceVO implements Serializable {
      * 空间级别：0-普通版 1-专业版 2-旗舰版
      */
     private Integer spaceLevel;
+
+    /**
+     * 空间类型:0表示私有,1表示团队
+     */
+    private Integer spaceType;
 
     /**
      * 空间图片的最大总大小
@@ -68,6 +76,11 @@ public class SpaceVO implements Serializable {
      * 创建用户信息
      */
     private UserVO user;
+
+    /**
+     * 权限列表
+     */
+    private List<String> permissionList = new ArrayList<>();
 
     private static final long serialVersionUID = 1L;
 

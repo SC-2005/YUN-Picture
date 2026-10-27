@@ -34,19 +34,27 @@
             <template v-if="showOp" #actions>
               <edit-outlined v-if="canEdit" @click="(e: MouseEvent) => doEdit(picture, e)" />
               <delete-outlined v-if="canDelete" @click="(e: MouseEvent) => doDelete(picture, e)" />
+              <share-alt-outlined
+                v-if="canShare"
+                @click="(e: MouseEvent) => doShare(picture, e)"
+              />
             </template>
           </a-card>
         </a-list-item>
       </template>
     </a-list>
+    <!-- 分享弹窗：链接在 doShare 里算好再打开，和公共图库详情页用的是同一个组件 -->
+    <ShareModal ref="shareModalRef" :link="shareLink" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { DeleteOutlined, EditOutlined } from '@ant-design/icons-vue'
+import { ref } from 'vue'
+import { DeleteOutlined, EditOutlined, ShareAltOutlined } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { deletePictureUsingPost } from '@/api/pictureController.ts'
+import ShareModal from '@/components/ShareModal.vue'
 
 interface Props {
   dataList?: API.PictureVO[]
@@ -55,6 +63,7 @@ interface Props {
   showOp?: boolean
   canEdit?: boolean
   canDelete?: boolean
+  canShare?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -63,6 +72,7 @@ const props = withDefaults(defineProps<Props>(), {
   showOp: false,
   canEdit: false,
   canDelete: false,
+  canShare: false,
 })
 
 /**
@@ -134,6 +144,27 @@ const doDelete = (picture: API.PictureVO, e: MouseEvent) => {
       }
     },
   })
+}
+
+// ----- 分享 -----
+const shareModalRef = ref<InstanceType<typeof ShareModal>>()
+// 分享链接
+const shareLink = ref<string>()
+
+/**
+ * 分享
+ *
+ * 和公共图库详情页保持一致：分享的是图片详情页地址，
+ * id 只做字符串拼接，不做 Number() 转换（雪花 id 会丢精度）。
+ */
+const doShare = (picture: API.PictureVO, e: MouseEvent) => {
+  // 阻止冒泡，否则会同时触发卡片的点击事件、跳到图片详情页
+  e.stopPropagation()
+  if (!props.canShare || !picture.id) {
+    return
+  }
+  shareLink.value = `${window.location.protocol}//${window.location.host}/picture/${picture.id}`
+  shareModalRef.value?.openModal()
 }
 </script>
 

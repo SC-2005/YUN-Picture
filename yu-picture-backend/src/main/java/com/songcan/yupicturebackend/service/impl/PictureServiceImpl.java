@@ -78,6 +78,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private AliYunAiApi aliYunAiApi;
+
+    @Resource
+    private CosManager cosManager;
+
     /**
      * 允许排序的字段白名单
      * <p>
@@ -118,8 +122,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         put("icon", "素材");
         put("图标", "素材");
     }};
-    @Autowired
-    private CosManager cosManager;
 
     /**
      * 转义 LIKE 的模糊匹配通配符
@@ -432,7 +434,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         queryWrapper.lt(ObjUtil.isNotEmpty(endEditTime), "editTime", endEditTime);
 
 
-
         // JSON 数组查询
         if (CollUtil.isNotEmpty(tags)) {
             for (String tag : tags) {
@@ -635,9 +636,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     /**
      * 抓取并上传一张图片
      *
-     * @param fileUrl  图片地址
-     * @param picName  图片名称
-     * @param category 分类
+     * @param fileUrl   图片地址
+     * @param picName   图片名称
+     * @param category  分类
      * @param loginUser 上传用户
      * @return 是否上传成功
      */
@@ -700,8 +701,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 判断是否存在
         Picture oldPicture = this.getById(pictureId);
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
+
         // 校验权限
-        checkPictureAuth(loginUser, oldPicture);
+        //已经改为使用注解鉴权
+        // checkPictureAuth(loginUser, oldPicture);
+
         // 开启事务
         transactionTemplate.execute(status -> {
             // 操作数据库
@@ -742,8 +746,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         long id = pictureEditRequest.getId();
         Picture oldPicture = this.getById(id);
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
+
         // 校验权限
-        checkPictureAuth(loginUser, oldPicture);
+        //已经改为使用注解鉴权
+        //checkPictureAuth(loginUser, oldPicture);
+
         // 补充审核参数
         this.fillReviewParams(picture, loginUser);
         // 操作数据库
@@ -855,6 +862,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     /**
      * 补充审核参数
+     *
      * @param spaceId
      * @param picColor
      * @param loginUser
@@ -933,8 +941,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Long pictureId = createPictureOutPaintingTaskRequest.getPictureId();
         Picture picture = Optional.ofNullable(this.getById(pictureId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND_ERROR));
+
         // 权限校验
-        checkPictureAuth(loginUser, picture);
+        //已经改为使用注解鉴权
+        //checkPictureAuth(loginUser, picture);
         // 构造请求参数
         CreateOutPaintingTaskRequest taskRequest = new CreateOutPaintingTaskRequest();
         CreateOutPaintingTaskRequest.Input input = new CreateOutPaintingTaskRequest.Input();
