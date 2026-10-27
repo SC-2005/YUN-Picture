@@ -2,7 +2,7 @@ package com.songcan.yupicturebackend.manager.auth.annotation;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.dev33.satoken.annotation.SaMode;
-import cn.hutool.core.annotation.AliasFor;
+import org.springframework.core.annotation.AliasFor;
 import com.songcan.yupicturebackend.manager.auth.StpKit;
 
 import java.lang.annotation.ElementType;
@@ -13,6 +13,11 @@ import java.lang.annotation.Target;
 /**
  * 空间权限认证：必须具有指定权限才能进入该方法
  * <p> 可标注在函数、类上（效果等同于标注在此类的所有方法上）
+ *
+ * 注意：下面几个 @AliasFor 必须是 Spring 的 org.springframework.core.annotation.AliasFor。
+ * SaTokenConfigure 里用 AnnotatedElementUtils.getMergedAnnotation 读取注解，它只认 Spring 的 AliasFor；
+ * 如果误用 Hutool 的同名注解（cn.hutool.core.annotation.AliasFor），别名合并会失败，
+ * 合并出来的 SaCheckPermission.value 永远是空数组，权限注解就变成「只校验登录、不校验权限」。
  */
 @SaCheckPermission(type = StpKit.SPACE_TYPE)
 @Retention(RetentionPolicy.RUNTIME)

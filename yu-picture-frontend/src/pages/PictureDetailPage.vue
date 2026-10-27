@@ -95,13 +95,11 @@ import {
   getPictureByIdUsingGet,
   getPictureVoByIdUsingGet,
 } from '@/api/pictureController.ts'
-import {
-  PIC_REVIEW_STATUS_ENUM,
-  PIC_REVIEW_STATUS_MAP,
-} from '@/constants/picture.ts'
+import { PIC_REVIEW_STATUS_ENUM, PIC_REVIEW_STATUS_MAP } from '@/constants/picture.ts'
 import PictureReviewModal from '@/components/PictureReviewModal.vue'
 import ShareModal from '@/components/ShareModal.vue'
 import { ShareAltOutlined } from '@ant-design/icons-vue'
+import { SPACE_PERMISSION_ENUM } from '@/constants/space.ts'
 import { Modal, message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
@@ -183,22 +181,47 @@ const onReviewSuccess = () => {
 }
 
 /**
- * 是否有编辑权限：本人或管理员
- * 对应后端 PictureController.editPicture 的 owner-or-admin 校验
+ * 通用权限检查函数
+ *
+ * 权限列表由后端 /picture/get/vo 根据图片所在的空间（公共图库 / 私有空间 / 团队空间）
+ * 和当前用户的角色算好下发，前端只检查列表里有没有需要的权限码
  */
-const canEdit = computed(() => {
+function createPermissionChecker(permission: string) {
+  return computed(() => (picture.value.permissionList ?? []).includes(permission))
+}
+
+const hasEditPermission = createPermissionChecker(SPACE_PERMISSION_ENUM.PICTURE_EDIT)
+const hasDeletePermission = createPermissionChecker(SPACE_PERMISSION_ENUM.PICTURE_DELETE)
+
+/**
+ * 是否是图片上传者（两边的 id 都按字符串比，雪花 id 在 JSON 里是字符串形态）
+ */
+const isOwner = computed(() => {
   const user = loginUserStore.loginUser
-  if (!user.id) {
+  if (!user.id || !picture.value.userId) {
     return false
   }
-  return user.userRole === 'admin' || user.id === picture.value.userId
+  return String(user.id) === String(picture.value.userId)
 })
 
 /**
- * 是否有删除权限：本人或管理员
- * 对应后端 PictureController.deletePicture 的 owner-or-admin 校验
+ * 公共图库的兜底判断
+ *
+ * 后端的 SpaceUserAuthManager#getPermissionList 对公共图库只给管理员下发完整权限，
+ * 普通用户上传的公共图片 permissionList 是空的。但后端鉴权（StpInterfaceImpl）对
+ * 「公共图库 + 本人上传」是放行的，所以前端要补上「本人上传」这一条，
+ * 否则普通用户会看不到自己公共图片的编辑 / 删除按钮。
+ * 私有空间和团队空间不兜底，严格以 permissionList 为准。
  */
-const canDelete = computed(() => canEdit.value)
+const hasPublicFallback = computed(
+  () => picture.value.spaceId == null && (isAdmin.value || isOwner.value),
+)
+
+/** 是否有编辑权限：空间权限 ∪ 公共图库本人/管理员 */
+const canEdit = computed(() => hasEditPermission.value || hasPublicFallback.value)
+
+/** 是否有删除权限：空间权限 ∪ 公共图库本人/管理员 */
+const canDelete = computed(() => hasDeletePermission.value || hasPublicFallback.value)
 
 // 审核状态文案
 const reviewStatusText = computed(() =>

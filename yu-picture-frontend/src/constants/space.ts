@@ -31,6 +31,88 @@ export const SPACE_LEVEL_OPTIONS = Object.entries(SPACE_LEVEL_MAP).map(([value, 
 }))
 
 /**
+ * 空间类型
+ *
+ * 必须和后端 SpaceTypeEnum 一一对应，改这里要同步改后端。
+ * 0 私有空间 / 1 团队空间
+ */
+export const SPACE_TYPE_ENUM = {
+  PRIVATE: 0,
+  TEAM: 1,
+} as const
+
+/**
+ * 空间类型文案
+ */
+export const SPACE_TYPE_MAP: Record<number, string> = {
+  0: '私有空间',
+  1: '团队空间',
+}
+
+/**
+ * 空间类型下拉选项
+ */
+export const SPACE_TYPE_OPTIONS = Object.entries(SPACE_TYPE_MAP).map(([value, label]) => ({
+  label,
+  value: Number(value),
+}))
+
+/**
+ * 按类型取文案
+ *
+ * API 里的 spaceType 是可选字段（number | undefined），直接索引会过不了类型检查；
+ * 拿不到时按私有空间兜底（老数据 / 请求还没返回时都是这个表现）
+ * @param type 后端返回的空间类型
+ */
+export const getSpaceTypeText = (type?: number) => {
+  return type == null ? '私有空间' : (SPACE_TYPE_MAP[type] ?? '私有空间')
+}
+
+/**
+ * 空间角色
+ *
+ * 必须和后端 SpaceRoleEnum 一一对应，改这里要同步改后端。
+ * viewer 浏览者 / editor 编辑者 / admin 管理员
+ */
+export const SPACE_ROLE_ENUM = {
+  VIEWER: 'viewer',
+  EDITOR: 'editor',
+  ADMIN: 'admin',
+} as const
+
+/**
+ * 空间角色文案
+ */
+export const SPACE_ROLE_MAP: Record<string, string> = {
+  viewer: '浏览者',
+  editor: '编辑者',
+  admin: '管理员',
+}
+
+/**
+ * 空间角色下拉选项
+ */
+export const SPACE_ROLE_OPTIONS = Object.entries(SPACE_ROLE_MAP).map(([value, label]) => ({
+  label,
+  value,
+}))
+
+/**
+ * 空间权限常量
+ *
+ * 必须和后端 SpaceUserPermissionConstant 一一对应，改这里要同步改后端。
+ * 后端在空间详情 / 图片详情里通过 permissionList 把当前用户拥有的权限下发给前端，
+ * 前端只负责「没有权限就藏掉按钮」，真正的拦截仍在后端。
+ */
+export const SPACE_PERMISSION_ENUM = {
+  SPACE_USER_MANAGE: 'spaceUser:manage',
+  PICTURE_VIEW: 'picture:view',
+  PICTURE_UPLOAD: 'picture:upload',
+  PICTURE_EDIT: 'picture:edit',
+  PICTURE_DELETE: 'picture:delete',
+} as const
+
+/**
  * 空间级别图标
  *
  * 只是视觉标识，用 emoji 而不是引静态图 / iconfont：不用加依赖、不用管打包路径，

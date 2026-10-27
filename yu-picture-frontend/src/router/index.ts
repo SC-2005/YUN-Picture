@@ -12,6 +12,7 @@ import AddSpacePage from '@/pages/AddSpacePage.vue'
 import MySpacePage from '@/pages/MySpacePage.vue'
 import SpaceDetailPage from '@/pages/SpaceDetailPage.vue'
 import SpaceAnalyzePage from '@/pages/SpaceAnalyzePage.vue'
+import SpaceUserManagePage from '@/pages/SpaceUserManagePage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -97,6 +98,15 @@ const router = createRouter({
       component: SpaceDetailPage,
       // 把路由参数 id 作为 props 传给页面组件
       props: true,
+    },
+    {
+      path: '/spaceUserManage/:id',
+      name: '空间成员管理',
+      component: SpaceUserManagePage,
+      // 把路由参数 id 作为 props 传给页面组件
+      props: true,
+      // 不限制 access：能否管理成员由后端按 spaceUser:manage 权限校验，
+      // 前端路由守卫拦不了（角色信息只在对应空间里才查得到）
     },
     {
       path: '/space_analyze',

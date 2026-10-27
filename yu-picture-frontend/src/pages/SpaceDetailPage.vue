@@ -3,21 +3,42 @@
     <!-- 空间信息 -->
     <a-flex justify="space-between" align="center" :gap="16" wrap>
       <a-flex align="center" :gap="8" wrap>
-        <h2 style="margin: 0">{{ space.spaceName ?? '空间' }}（私有空间）</h2>
+        <h2 style="margin: 0">
+          {{ space.spaceName ?? '空间' }}（{{ getSpaceTypeText(space.spaceType) }}）
+        </h2>
         <!-- 空间级别标识：🌱 普通版 / 🚀 专业版 / 💎 旗舰版，配色由级别决定 -->
         <a-tag v-if="levelTag" :color="levelTag.color" style="margin: 0">
           {{ levelTag.icon }} {{ levelTag.text }}
         </a-tag>
       </a-flex>
       <a-space :size="16" wrap>
-        <!-- 上传、编辑都只有空间创建人能操作，和后端 uploadPicture / editSpace 的校验对应 -->
-        <a-button v-if="isOwner" type="primary" @click="openUploadModal"> + 创建图片 </a-button>
-        <!-- 批量编辑只对私有空间开放：后端按 spaceId 校验空间归属，非创建人调用会被拒 -->
-        <a-button v-if="isOwner" :icon="h(EditOutlined)" @click="doBatchEdit">批量编辑</a-button>
+        <!-- 按钮显隐统一由后端下发的 permissionList 决定：
+             私有空间里创建人拿到全部权限，团队空间里按 viewer / editor / admin 角色区分 -->
+        <a-button v-if="canUploadPicture" type="primary" @click="openUploadModal">
+          + 创建图片
+        </a-button>
+        <!-- 批量编辑改的是图片信息，需要 picture:edit 权限 -->
+        <a-button v-if="canEditPicture" :icon="h(EditOutlined)" @click="doBatchEdit"
+          >批量编辑</a-button
+        >
+        <!-- 编辑空间信息仍然只给空间创建人：后端 editSpace 按空间归属校验，管理员走管理页 -->
         <a-button v-if="isOwner" @click="doEditSpace">编辑空间</a-button>
+        <!-- 成员管理：只有团队空间才有成员概念，且需要 spaceUser:manage 权限（后端接口同样会校验）。
+             私有空间的创建人也会拿到这枚权限码（ADMIN 权限全集），所以必须再按空间类型过滤 -->
+        <a-button
+          v-if="isTeamSpace && canManageSpaceUser"
+          type="primary"
+          ghost
+          :icon="h(TeamOutlined)"
+          :href="`/spaceUserManage/${id}`"
+          target="_blank"
+        >
+          成员管理
+        </a-button>
         <!-- 空间分析：带上当前空间 id 跳到分析页，新开窗口看图表，不打断当前浏览的图片列表。
              spaceIdParam 是字符串形态的雪花 id（toApiId），拼到 URL 里不会丢精度 -->
         <a-button
+          v-if="canManageSpaceUser"
           type="primary"
           ghost
           :icon="h(BarChartOutlined)"
@@ -40,7 +61,7 @@
       v-if="errorMsg"
       status="403"
       :title="errorMsg"
-      sub-title="私有空间内的图片仅空间创建人可查看"
+      sub-title="空间内的图片仅空间创建人或团队成员可查看"
     />
     <template v-else>
       <!-- 搜索表单：条件由子组件收集，这里只负责拼上 spaceId 去查 -->
@@ -57,10 +78,10 @@
       <PictureGridList
         :data-list="dataList"
         :loading="loading"
-        show-op
-        :can-edit="isOwner"
-        :can-delete="isOwner"
-        :can-share="isOwner"
+        :show-op="canEditPicture || canDeletePicture"
+        :can-edit="canEditPicture"
+        :can-delete="canDeletePicture"
+        :can-share="canEditPicture"
         @reload="onReload"
       />
       <!-- 分页 -->
@@ -90,7 +111,7 @@
 import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { BarChartOutlined, EditOutlined } from '@ant-design/icons-vue'
+import { BarChartOutlined, EditOutlined, TeamOutlined } from '@ant-design/icons-vue'
 import { ColorPicker } from 'vue3-colorpicker'
 import 'vue3-colorpicker/style.css'
 import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
@@ -102,7 +123,14 @@ import BatchEditPictureModal from '@/components/BatchEditPictureModal.vue'
 import PictureGridList from '@/components/PictureGridList.vue'
 import PictureSearchForm from '@/components/PictureSearchForm.vue'
 import PictureUploadModal from '@/components/PictureUploadModal.vue'
-import { SPACE_LEVEL_MAP, getSpaceLevelColor, getSpaceLevelIcon } from '@/constants/space.ts'
+import {
+  SPACE_LEVEL_MAP,
+  SPACE_PERMISSION_ENUM,
+  SPACE_TYPE_ENUM,
+  getSpaceLevelColor,
+  getSpaceLevelIcon,
+  getSpaceTypeText,
+} from '@/constants/space.ts'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 import { formatSize, toApiId } from '@/utils'
 
@@ -164,7 +192,7 @@ const searchParams = ref<API.PictureQueryRequest>({
 })
 
 /**
- * 是否是空间创建人（现阶段私有空间的管理员就是创建人）
+ * 是否是空间创建人（编辑空间信息仍然只给创建人）
  *
  * 两侧都转成字符串再比：id 是雪花 id，在 JSON 里是字符串形态，类型上却声明成 number，
  * 用 === 直接比较会因为类型不一致而恒为 false
@@ -176,6 +204,26 @@ const isOwner = computed(() => {
   }
   return String(space.value.userId) === String(loginUserId)
 })
+
+/**
+ * 通用权限检查函数
+ *
+ * 权限列表由后端 /space/get/vo 根据「公共图库 / 私有空间 / 团队空间」动态算好下发，
+ * 前端不做角色判断，只检查列表里有没有需要的权限码。
+ * 用 computed 包起来：空间详情是异步加载的，permissionList 到了之后按钮自动出现
+ */
+function createPermissionChecker(permission: string) {
+  return computed(() => (space.value.permissionList ?? []).includes(permission))
+}
+
+// 空间详情页需要控制的四类操作
+const canManageSpaceUser = createPermissionChecker(SPACE_PERMISSION_ENUM.SPACE_USER_MANAGE)
+const canUploadPicture = createPermissionChecker(SPACE_PERMISSION_ENUM.PICTURE_UPLOAD)
+const canEditPicture = createPermissionChecker(SPACE_PERMISSION_ENUM.PICTURE_EDIT)
+const canDeletePicture = createPermissionChecker(SPACE_PERMISSION_ENUM.PICTURE_DELETE)
+
+/** 是否团队空间：成员管理入口只对团队空间展示（私有空间没有成员表数据） */
+const isTeamSpace = computed(() => space.value.spaceType === SPACE_TYPE_ENUM.TEAM)
 
 /**
  * 已用空间占比

@@ -28,6 +28,15 @@
           allow-clear
         />
       </a-form-item>
+      <a-form-item label="空间类别" name="spaceType">
+        <a-select
+          v-model:value="searchParams.spaceType"
+          style="min-width: 180px"
+          placeholder="请选择空间类别"
+          :options="SPACE_TYPE_OPTIONS"
+          allow-clear
+        />
+      </a-form-item>
       <a-form-item label="用户 id" name="userId">
         <a-input v-model:value="searchParams.userId" placeholder="请输入用户 id" allow-clear />
       </a-form-item>
@@ -51,6 +60,10 @@
             {{ getSpaceLevelIcon(record.spaceLevel) }}
             {{ SPACE_LEVEL_MAP[record.spaceLevel] ?? '未知' }}
           </a-tag>
+        </template>
+        <template v-else-if="column.dataIndex === 'spaceType'">
+          <!-- 老数据的 spaceType 是数据库默认值 0，兜底按私有空间展示 -->
+          <a-tag>{{ SPACE_TYPE_MAP[record.spaceType] ?? '私有空间' }}</a-tag>
         </template>
         <template v-else-if="column.dataIndex === 'spaceUseInfo'">
           <div>大小：{{ formatSize(record.totalSize) }} / {{ formatSize(record.maxSize) }}</div>
@@ -86,6 +99,8 @@ import { deleteSpaceUsingPost, listSpaceByPageUsingPost } from '@/api/spaceContr
 import {
   SPACE_LEVEL_MAP,
   SPACE_LEVEL_OPTIONS,
+  SPACE_TYPE_MAP,
+  SPACE_TYPE_OPTIONS,
   getSpaceLevelColor,
   getSpaceLevelIcon,
 } from '@/constants/space.ts'
@@ -107,6 +122,10 @@ const columns = [
   {
     title: '空间级别',
     dataIndex: 'spaceLevel',
+  },
+  {
+    title: '空间类别',
+    dataIndex: 'spaceType',
   },
   {
     title: '使用情况',

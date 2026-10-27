@@ -1,6 +1,8 @@
 <template>
   <div id="addSpacePage">
-    <h2 style="margin-bottom: 16px">{{ isEdit ? '修改空间' : '创建空间' }}</h2>
+    <h2 style="margin-bottom: 16px">
+      {{ isEdit ? '修改' : '创建' }}{{ SPACE_TYPE_MAP[spaceType] ?? '空间' }}
+    </h2>
     <!-- 空间信息表单 -->
     <a-form name="spaceForm" layout="vertical" :model="spaceForm" @finish="handleSubmit">
       <a-form-item name="spaceName" label="空间名称">
@@ -48,7 +50,13 @@ import {
   listSpaceLevelUsingGet,
   updateSpaceUsingPost,
 } from '@/api/spaceController.ts'
-import { SPACE_LEVEL_ENUM, SPACE_LEVEL_OPTIONS, getSpaceLevelIcon } from '@/constants/space.ts'
+import {
+  SPACE_LEVEL_ENUM,
+  SPACE_LEVEL_OPTIONS,
+  SPACE_TYPE_ENUM,
+  SPACE_TYPE_MAP,
+  getSpaceLevelIcon,
+} from '@/constants/space.ts'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 import { formatSize, toApiId } from '@/utils'
 
@@ -73,6 +81,23 @@ const isEdit = computed(() => Boolean(route.query?.id))
 const isAdmin = computed(() => loginUserStore.loginUser.userRole === 'admin')
 /** 编辑态下只有管理员能改级别：改级别等于改限额，那是管理员专属的 updateSpace 的能力 */
 const levelDisabled = computed(() => isEdit.value && !isAdmin.value)
+
+/**
+ * 空间类别
+ *
+ * 创建时由侧边栏「创建团队」带进来的 ?type=1 决定，不传就是私有空间；
+ * 编辑时以空间真实类型为准 —— 从空间管理页点编辑只会带 id，
+ * 不读 oldSpace 的话会把团队空间误显示成私有空间
+ */
+const spaceType = computed(() => {
+  if (oldSpace.value?.spaceType != null) {
+    return oldSpace.value.spaceType
+  }
+  if (route.query?.type) {
+    return Number(route.query.type)
+  }
+  return SPACE_TYPE_ENUM.PRIVATE
+})
 
 /**
  * 获取空间级别列表
@@ -138,7 +163,7 @@ const handleSubmit = async () => {
       path = `/space/${spaceId}`
     } else {
       // 创建：返回的是新空间的 id（雪花 id 在 JSON 里是字符串），直接拼进路径即可
-      const res = await addSpaceUsingPost({ ...spaceForm })
+      const res = await addSpaceUsingPost({ ...spaceForm, spaceType: spaceType.value })
       if (res.data.code !== 0 || res.data.data == null) {
         message.error('操作失败，' + res.data.message)
         return
