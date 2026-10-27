@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/spaceUser")
@@ -137,6 +138,12 @@ public class SpaceUserController {
         List<SpaceUser> spaceUserList = spaceUserService.list(
                 spaceUserService.getQueryWrapper(spaceUserQueryRequest)
         );
-        return ResultUtils.success(spaceUserService.getSpaceUserVOList(spaceUserList));
+        // 历史数据里可能有「空间已删除、成员记录还在」的孤儿数据，这类记录拼不出空间信息，
+        // 不能作为「我加入的团队空间」返回，否则前端只能显示成「未命名团队」
+        List<SpaceUserVO> spaceUserVOList = spaceUserService.getSpaceUserVOList(spaceUserList)
+                .stream()
+                .filter(spaceUserVO -> spaceUserVO.getSpace() != null)
+                .collect(Collectors.toList());
+        return ResultUtils.success(spaceUserVOList);
     }
 }

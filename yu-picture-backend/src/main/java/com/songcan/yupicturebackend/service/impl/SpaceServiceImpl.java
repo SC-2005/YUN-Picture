@@ -168,6 +168,10 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
             }
             boolean result = this.removeById(id);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+            // 成员记录一并删除：space_user 没有逻辑删除（为了退出后能重新加入），
+            // 不清理的话空间删了成员记录还在，/spaceUser/list/my 会返回 space 为 null 的孤儿记录，
+            // 前端侧边栏就会冒出「未命名团队」
+            spaceUserService.remove(new QueryWrapper<SpaceUser>().eq("spaceId", id));
             return true;
         });
         // 删除分表

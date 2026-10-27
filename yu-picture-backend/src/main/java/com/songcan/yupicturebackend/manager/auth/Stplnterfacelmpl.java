@@ -24,6 +24,7 @@ import com.songcan.yupicturebackend.service.SpaceService;
 import com.songcan.yupicturebackend.service.SpaceUserService;
 import com.songcan.yupicturebackend.service.UserService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -33,6 +34,14 @@ import java.util.*;
 
 import static com.songcan.yupicturebackend.constant.UserConstant.USER_LOGIN_STATE;
 
+/**
+ * 自定义权限加载实现类
+ *
+ * 必须注册为 Spring Bean：Sa-Token 会从容器里找 StpInterface 实现来加载权限，
+ * 找不到时用的是默认实现（永远返回空权限列表），所有 @SaSpaceCheckPermission
+ * 和 StpKit.SPACE.hasPermission() 都会判成「无权限」。
+ */
+@Component
 public class Stplnterfacelmpl implements StpInterface {
     @Value("${server.servlet.context-path}")
     private String contextPath;

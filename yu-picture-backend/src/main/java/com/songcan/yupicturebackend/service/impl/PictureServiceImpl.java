@@ -180,10 +180,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (pictureId != null) {
             oldPicture = this.getById(pictureId);
             ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR, "图片不存在");
-            // 判断归属要比图片的 userId，不是图片自己的 id
-            if (!oldPicture.getUserId().equals(loginUser.getId()) && !userService.isAdmin(loginUser)) {
-                throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-            }
+            // 权限交给 @SaSpaceCheckPermission(picture:upload) 统一校验：
+            // 团队空间的编辑者也能替换别人上传的图片，这里不能再限制「只有原上传人/管理员」，
+            // 否则编辑者一换图就被判「无权限」
         }
         //归一化空间 id：没传 spaceid 则复用原有图片的 spaceid；传了必须和原图一致（不允许把图挪到别的空间）
         Long spaceId = pictureUploadRequest.getSpaceId();
@@ -201,10 +200,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (spaceId != null) {
             Space space = spaceService.getById(spaceId);
             ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-            // 必须空间创建人（管理员）才能上传
-            if (!loginUser.getId().equals(space.getUserId())) {
-                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
-            }
+            // 上传权限交给 @SaSpaceCheckPermission(picture:upload) 统一校验：
+            // 私有空间只有创建人/管理员有该权限，团队空间按成员角色下发（编辑者、管理员可以上传）。
+            // 这里不能再判断 space.getUserId()，否则团队空间的编辑者会被当成「没有空间权限」
             // 校验额度
             // 条数：更新是同一张图换文件，不占新条数，所以满员的空间也应该允许换图
             if (!isUpdate && space.getTotalCount() >= space.getMaxCount()) {
@@ -762,8 +760,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
      * 批量编辑图片（分类、标签、名称）
      * <p>
      * 批量操作有两条必须守住的红线：权限和原子性。
-     * 权限上，只认「空间创建人」，并且查询时用 spaceId 和 id 列表一起过滤，
-     * 避免别人拿着自己空间里的 id 去改别人空间（或公共图库）的图片；
+     * 权限上交由 @SaSpaceCheckPermission(picture:edit) 统一校验（团队空间的编辑者/管理员可用），
+     * 查询时再用 spaceId 和 id 列表一起过滤，避免拿着自己空间里的 id 去改别人空间（或公共图库）的图片；
      * 原子性上，整批走一个事务，中途有一条失败就整体回滚。
      */
     @Override
@@ -776,12 +774,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         List<String> tags = pictureEditByBatchRequest.getTags();
         ThrowUtils.throwIf(spaceId == null || CollUtil.isEmpty(pictureIdList), ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(loginUser == null, ErrorCode.NO_AUTH_ERROR);
-        // 2. 校验空间权限
+        // 2. 校验空间是否存在（权限交给 @SaSpaceCheckPermission(picture:edit) 统一校验，
+        //    团队空间的编辑者/管理员也能批量编辑，不能再按空间创建人判断）
         Space space = spaceService.getById(spaceId);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-        if (!loginUser.getId().equals(space.getUserId())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间访问权限");
-        }
         // 3. 查询指定图片，仅选择需要的字段
         // 只查 id 和 spaceId：后面要改的字段是现算出来的，其余字段（url、picSize 等）根本用不到，
         // 查回来再整条写回去还会把并发改动的其它字段覆盖掉
@@ -873,12 +869,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 1. 校验参数
         ThrowUtils.throwIf(spaceId == null || StrUtil.isBlank(picColor), ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(loginUser == null, ErrorCode.NO_AUTH_ERROR);
-        // 2. 校验空间权限
+        // 2. 校验空间是否存在（查看权限交给 @SaSpaceCheckPermission(picture:view) 统一校验，
+        //    团队空间的浏览者/编辑者/管理员都该能按颜色搜索，不能再按空间创建人判断）
         Space space = spaceService.getById(spaceId);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-        if (!loginUser.getId().equals(space.getUserId())) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间访问权限");
-        }
         // 3. 查询该空间下所有图片（必须有主色调）
         List<Picture> pictureList = this.lambdaQuery()
                 .eq(Picture::getSpaceId, spaceId)

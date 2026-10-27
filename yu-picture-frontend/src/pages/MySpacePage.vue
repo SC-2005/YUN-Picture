@@ -9,6 +9,7 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { listSpaceVoByPageUsingPost } from '@/api/spaceController.ts'
+import { SPACE_TYPE_ENUM } from '@/constants/space.ts'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 
 const router = useRouter()
@@ -26,11 +27,13 @@ const checkUserSpace = async () => {
     router.replace('/user/login')
     return
   }
-  // 获取该用户已创建的空间。pageSize 给 1 就够：每个用户最多只能创建一个私有空间
+  // 获取该用户已创建的私有空间。pageSize 给 1 就够：每个用户最多只能创建一个私有空间。
+  // spaceType 必须传：同一个用户还可能有团队空间，不筛类别会把团队空间当成「我的空间」跳进去
   const res = await listSpaceVoByPageUsingPost({
     userId: loginUser.id,
     current: 1,
     pageSize: 1,
+    spaceType: SPACE_TYPE_ENUM.PRIVATE,
   })
   if (res.data.code !== 0) {
     message.error('加载我的空间失败，' + res.data.message)
