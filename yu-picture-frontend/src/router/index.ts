@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '@/pages/HomePage.vue'
 import UserLoginPage from '@/pages/user/UserLoginPage.vue'
 import UserRegisterPage from '@/pages/user/UserRegisterPage.vue'
+import UserCenterPage from '@/pages/user/UserCenterPage.vue'
 import UserManagePage from '@/pages/admin/UserManagePage.vue'
 import AddPicturePage from '@/pages/AddPicturePage.vue'
 import AddPictureBatchPage from '@/pages/AddPictureBatchPage.vue'
@@ -37,6 +38,12 @@ const router = createRouter({
       path: '/user/register',
       name: '用户注册',
       component: UserRegisterPage,
+    },
+    {
+      path: '/user/center',
+      name: '个人中心',
+      component: UserCenterPage,
+      // 不配置 access：未登录时页面自己会跳回登录页
     },
     {
       path: '/admin/userManage',

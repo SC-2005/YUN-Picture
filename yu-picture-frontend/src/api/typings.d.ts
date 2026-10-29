@@ -244,7 +244,9 @@ declare namespace API {
   type LoginUserVO = {
     createTime?: string
     editTime?: string
+    hasPassword?: boolean
     id?: number
+    phone?: string
     updateTime?: string
     userAccount?: string
     userAvatar?: string
@@ -656,10 +658,12 @@ declare namespace API {
   }
 
   type User = {
+    admin?: boolean
     createTime?: string
     editTime?: string
     id?: number
     isDelete?: number
+    phone?: string
     updateTime?: string
     userAccount?: string
     userAvatar?: string
@@ -682,6 +686,25 @@ declare namespace API {
     userPassword?: string
   }
 
+  type UserPasswordResetRequest = {
+    checkPassword?: string
+    code?: string
+    newPassword?: string
+    phone?: string
+  }
+
+  type UserPasswordUpdateRequest = {
+    checkPassword?: string
+    newPassword?: string
+    oldPassword?: string
+  }
+
+  type UserProfileUpdateRequest = {
+    userAvatar?: string
+    userName?: string
+    userProfile?: string
+  }
+
   type UserQueryRequest = {
     current?: number
     id?: number
@@ -698,6 +721,15 @@ declare namespace API {
     checkPassword?: string
     userAccount?: string
     userPassword?: string
+  }
+
+  type UserSmsLoginRequest = {
+    code?: string
+    phone?: string
+  }
+
+  type UserSmsSendRequest = {
+    phone?: string
   }
 
   type UserUpdateRequest = {

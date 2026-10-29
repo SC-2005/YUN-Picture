@@ -203,7 +203,7 @@ export async function searchPictureByColorUsingPost(
   })
 }
 
-/** ListPictureTagCategory GET /api/picture/tag_category */
+/** listPictureTagCategory GET /api/picture/tag_category */
 export async function listPictureTagCategoryUsingGet(options?: { [key: string]: any }) {
   return request<API.BaseResponsePictureTagCategory_>('/api/picture/tag_category', {
     method: 'GET',
@@ -267,7 +267,7 @@ export async function uploadPictureUsingPost(
   })
 }
 
-/** UploadPictureByBatch POST /api/picture/upload/batch */
+/** uploadPictureByBatch POST /api/picture/upload/batch */
 export async function uploadPictureByBatchUsingPost(
   body: API.PictureUploadByBatchRequest,
   options?: { [key: string]: any }

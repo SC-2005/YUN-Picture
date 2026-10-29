@@ -56,7 +56,7 @@ spring:
             type: CLASS_BASED
             props:
               strategy: standard
-              algorithmClassName: com.songcan.yupicturebackend.manager.sharding.PictureShardingAlgorithm
+              algorithmClassName: com.songcan.yupicture.shared.sharding.PictureShardingAlgorithm
     props:
       sql-show: false
 
@@ -82,6 +82,6 @@ knife4j:
       default:
         api-rule: package
         api-rule-resources:
-          - com.songcan.yupicturebackend.controller
+          - com.songcan.yupicture.interfaces.controller
 
 

@@ -22,8 +22,9 @@
       <a-col flex="120px">
         <div class="user-login-status">
           <div v-if="loginUserStore.loginUser.id" class="user-info">
-            <a-dropdown>
-              <a-space>
+            <a-dropdown :trigger="['hover']">
+              <!-- 点击头像直接进入个人中心，悬停时展开菜单 -->
+              <router-link to="/user/center" class="user-trigger">
                 <!-- 有真实头像时展示图片，否则用名字的第一个字作为默认头像 -->
                 <a-avatar
                   :src="loginUserStore.loginUser.userAvatar || undefined"
@@ -32,9 +33,15 @@
                   {{ avatarText }}
                 </a-avatar>
                 <span>{{ displayName }}</span>
-              </a-space>
+              </router-link>
               <template #overlay>
                 <a-menu>
+                  <a-menu-item>
+                    <router-link to="/user/center">
+                      <UserOutlined />
+                      个人中心
+                    </router-link>
+                  </a-menu-item>
                   <a-menu-item>
                     <router-link to="/my_space">
                       <UserOutlined />
@@ -192,5 +199,12 @@ const doLogout = async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
 }
 </style>
