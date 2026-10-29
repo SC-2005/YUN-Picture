@@ -43,6 +43,15 @@
         @img-load="handleImgLoad"
       />
       <div style="margin-bottom: 16px" />
+      <!-- 协同编辑操作：只有团队空间才需要「占锁」，个人空间的编辑按钮一直可用 -->
+      <div class="image-edit-actions" v-if="isTeamSpace">
+        <a-space wrap>
+          <a-button v-if="editingUser" disabled>{{ editingUser.userName }} 正在编辑</a-button>
+          <a-button v-if="canEnterEdit" type="primary" ghost @click="enterEdit">进入编辑</a-button>
+          <a-button v-if="canExitEdit" danger ghost @click="exitEdit">退出编辑</a-button>
+        </a-space>
+      </div>
+      <div v-if="isTeamSpace" style="margin-bottom: 16px" />
       <!-- 图片操作 -->
       <div class="image-cropper-actions">
         <a-space wrap>
@@ -62,7 +71,7 @@
             :min="20"
             :max="300"
             :step="1"
-            :disabled="disabled"
+            :disabled="localOnlyDisabled"
             :tip-formatter="(value?: number) => `${value}%`"
             @change="handleScaleChange"
           />
@@ -75,15 +84,18 @@
             :min="0"
             :max="359"
             :precision="0"
-            :disabled="disabled"
+            :disabled="localOnlyDisabled"
             addon-after="°"
             style="width: 140px"
           />
-          <a-button :disabled="disabled" :loading="rotating" @click="handleRotate">
+          <a-button :disabled="localOnlyDisabled" :loading="rotating" @click="handleRotate">
             顺时针旋转
           </a-button>
           <a-typography-text type="secondary">
             （可点多次累加，例如 45° + 45° = 90°）
+          </a-typography-text>
+          <a-typography-text v-if="isTeamSpace" type="warning">
+            （团队空间只同步上方的旋转 / 缩放按钮）
           </a-typography-text>
         </div>
       </div>
@@ -92,10 +104,14 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { message } from 'ant-design-vue'
 import { uploadPictureUsingPost } from '@/api/pictureController.ts'
 import { fetchImageAsDataUrl, rotateImage } from '@/utils/image.ts'
+import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
+import PictureEditWebSocket from '@/utils/pictureEditWebSocket.ts'
+import { PICTURE_EDIT_ACTION_ENUM, PICTURE_EDIT_MESSAGE_TYPE_ENUM } from '@/constants/picture.ts'
+import { SPACE_TYPE_ENUM } from '@/constants/space.ts'
 
 import type { VueCropperInstance } from '@/types/vue-cropper'
 
@@ -106,10 +122,55 @@ interface Props {
   picture?: API.PictureVO
   /** 要保存到的空间 id，不传表示公共图库 */
   spaceId?: number
+  /** 图片所属空间：只有团队空间才开启协同编辑 */
+  space?: API.SpaceVO
   onSuccess?: (newPicture: API.PictureVO) => void
 }
 
 const props = defineProps<Props>()
+
+// --------- 协同编辑状态 ---------
+// 是否为团队空间：只有团队空间才会有人同时编辑同一张图，才需要协同
+const isTeamSpace = computed(() => {
+  return props.space?.spaceType === SPACE_TYPE_ENUM.TEAM
+})
+
+const loginUserStore = useLoginUserStore()
+/**
+ * 当前登录用户
+ *
+ * 用 computed 包一层而不是直接 `const loginUser = loginUserStore.loginUser`：
+ * store 里的 loginUser 是 ref，直接取值拿到的只是当时的快照，用户信息是路由守卫里
+ * 异步拉回来的，丢掉响应式后 canEdit 之类的计算会一直拿着旧值。
+ */
+const loginUser = computed(() => loginUserStore.loginUser)
+
+// 正在编辑的用户（收到 ENTER_EDIT 后会有值，EXIT_EDIT / 断开连接后清空）
+const editingUser = ref<API.UserVO>()
+
+// 当前没有人在编辑，可以点「进入编辑」
+const canEnterEdit = computed(() => {
+  return !editingUser.value
+})
+
+// 正在编辑的人是自己，可以点「退出编辑」
+const canExitEdit = computed(() => {
+  return editingUser.value?.id != null && editingUser.value.id === loginUser.value.id
+})
+
+/**
+ * 当前用户是否有权操作图片
+ *
+ * 非团队空间和以前一样，打开就能编辑；团队空间要采用「同一时刻只有一个人能编辑」的方案，
+ * 只有进入编辑状态的人能操作，其他人只能实时看效果。
+ */
+const canEdit = computed(() => {
+  if (!isTeamSpace.value) {
+    return true
+  }
+  // 注意：雪花 id 在前后端之间都是以字符串传的，这里两边都是字符串，直接严格比较即可
+  return editingUser.value?.id != null && editingUser.value.id === loginUser.value.id
+})
 
 /** 裁剪框比例选项 */
 const ASPECT_RATIO_OPTIONS = [
@@ -142,8 +203,21 @@ const imageError = ref('')
  */
 const imageSource = ref('')
 
-/** 图片还没准备好时，操作按钮全部禁用 */
-const disabled = computed(() => !imageSource.value)
+/**
+ * 操作按钮是否禁用
+ *
+ * 两种情况都禁用：图片还没准备好；或者团队空间里当前用户没拿到编辑权。
+ */
+const disabled = computed(() => !imageSource.value || !canEdit.value)
+
+/**
+ * 「任意角度旋转」「缩放滑动条」是否禁用
+ *
+ * 这两个是本地操作，后端协同协议里没有对应动作（只有放大/缩小/左旋/右旋四步），
+ * 团队空间里开了它们，编辑者看到的效果同步不到别人界面上，所以直接锁掉，
+ * 让团队编辑只能走上面那排能同步的按钮。
+ */
+const localOnlyDisabled = computed(() => disabled.value || isTeamSpace.value)
 
 /**
  * 缩放滑动条上的百分比
@@ -216,21 +290,49 @@ watch(aspectRatio, async () => {
 })
 
 // --------- 旋转 / 缩放 ---------
+//
+// 拆成两层：
+// - applyXxx：只操作裁剪器，本地按钮和「收到别人的编辑操作」都调它；
+// - rotateXxx / changeScale：本地按钮用，操作完再把动作广播给其他用户。
+// 如果收到远程操作后也调带广播的版本，消息会被再发回服务端（服务端会按「不是当前
+// 编辑者」丢弃，但白白多一轮通信），所以 WS 处理器只碰 applyXxx。
 
 // 向左旋转 90°
-const rotateLeft = () => {
+const applyRotateLeft = () => {
   cropperRef.value?.rotateLeft()
 }
 
 // 向右旋转 90°
-const rotateRight = () => {
+const applyRotateRight = () => {
   cropperRef.value?.rotateRight()
 }
 
 // 缩放：正数放大、负数缩小
-const changeScale = (num: number) => {
+const applyChangeScale = (num: number) => {
   cropperRef.value?.changeScale(num)
   syncScaleValue()
+}
+
+// 向左旋转（本地操作 + 广播）
+const rotateLeft = () => {
+  applyRotateLeft()
+  editAction(PICTURE_EDIT_ACTION_ENUM.ROTATE_LEFT)
+}
+
+// 向右旋转（本地操作 + 广播）
+const rotateRight = () => {
+  applyRotateRight()
+  editAction(PICTURE_EDIT_ACTION_ENUM.ROTATE_RIGHT)
+}
+
+// 缩放（本地操作 + 广播）
+const changeScale = (num: number) => {
+  applyChangeScale(num)
+  if (num > 0) {
+    editAction(PICTURE_EDIT_ACTION_ENUM.ZOOM_IN)
+  } else {
+    editAction(PICTURE_EDIT_ACTION_ENUM.ZOOM_OUT)
+  }
 }
 
 // --------- 缩放滑动条 ---------
@@ -387,11 +489,139 @@ const closeModal = () => {
   visible.value = false
   // 本次编辑到此为止，把图片数据放掉，下次打开重新从原图开始
   imageSource.value = ''
+  // 关闭弹窗就断开协同连接：后端 afterConnectionClosed 会顺带释放编辑状态，
+  // 不主动断的话，用户关掉弹窗后别人会一直看到「他正在编辑」
+  disconnectWebsocket()
+  editingUser.value = undefined
 }
 
 // 暴露函数给父组件
 defineExpose({
   openModal,
+})
+
+// --------- 协同编辑（WebSocket） ---------
+let websocket: PictureEditWebSocket | null = null
+
+/** 断开连接并清空实例：连接不可复用，重连 / 关弹窗 / 组件销毁都走这里 */
+const disconnectWebsocket = () => {
+  if (websocket) {
+    websocket.disconnect()
+    websocket = null
+  }
+}
+
+/** 进入编辑状态 */
+const enterEdit = () => {
+  websocket?.sendMessage({
+    type: PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT,
+  })
+}
+
+/** 退出编辑状态 */
+const exitEdit = () => {
+  websocket?.sendMessage({
+    type: PICTURE_EDIT_MESSAGE_TYPE_ENUM.EXIT_EDIT,
+  })
+}
+
+/**
+ * 把编辑动作广播给同一张图片的其他用户
+ * 后端只会转发给「除了自己以外」的会话，所以本地要先执行一遍再调这里
+ */
+const editAction = (action: string) => {
+  // 公共图库 / 私有空间不会建立连接，websocket 为空，直接跳过
+  websocket?.sendMessage({
+    type: PICTURE_EDIT_MESSAGE_TYPE_ENUM.EDIT_ACTION,
+    editAction: action,
+  })
+}
+
+/**
+ * 建立协同连接并绑定消息处理器
+ *
+ * 由下面的 watchEffect 在「弹窗打开 / 图片变化 / 是否团队空间变化」时调用；
+ * 重连前先断开旧连接，避免同一个页面挂着多条 WebSocket。
+ */
+const initWebsocket = () => {
+  const pictureId = props.picture?.id
+  if (!pictureId || !visible.value) {
+    return
+  }
+  disconnectWebsocket()
+  // 新连接拿不到之前的编辑状态（服务端不重放），先清空，免得显示成过期的编辑者
+  editingUser.value = undefined
+
+  websocket = new PictureEditWebSocket(pictureId)
+  websocket.connect()
+
+  // 有人加入 / 离开编辑的通知
+  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.INFO, (msg) => {
+    console.log('收到通知消息：', msg)
+    message.info(msg.message)
+  })
+
+  // 错误消息，比如消息类型不合法
+  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ERROR, (msg) => {
+    console.log('收到错误消息：', msg)
+    message.error(msg.message)
+  })
+
+  // 有人进入编辑：锁定编辑权，其他人只能看
+  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.ENTER_EDIT, (msg) => {
+    console.log('收到进入编辑状态的消息：', msg)
+    message.info(msg.message)
+    editingUser.value = msg.user
+  })
+
+  // 有人执行编辑操作：把同样的操作应用到自己界面上（只操作裁剪器，不要再广播回去）
+  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EDIT_ACTION, (msg) => {
+    console.log('收到编辑操作的消息：', msg)
+    message.info(msg.message)
+    switch (msg.editAction) {
+      case PICTURE_EDIT_ACTION_ENUM.ROTATE_LEFT:
+        applyRotateLeft()
+        break
+      case PICTURE_EDIT_ACTION_ENUM.ROTATE_RIGHT:
+        applyRotateRight()
+        break
+      case PICTURE_EDIT_ACTION_ENUM.ZOOM_IN:
+        applyChangeScale(1)
+        break
+      case PICTURE_EDIT_ACTION_ENUM.ZOOM_OUT:
+        applyChangeScale(-1)
+        break
+    }
+  })
+
+  // 有人退出编辑：释放编辑权，其他人可以进入
+  websocket.on(PICTURE_EDIT_MESSAGE_TYPE_ENUM.EXIT_EDIT, (msg) => {
+    console.log('收到退出编辑状态的消息：', msg)
+    message.info(msg.message)
+    editingUser.value = undefined
+  })
+}
+
+/**
+ * 只有团队空间才建立协同连接
+ *
+ * watchEffect 会追踪 isTeamSpace、visible（在 initWebsocket 里读到）和
+ * props.picture.id，所以打开弹窗、空间信息异步回来、换图片时都会自动重连。
+ */
+watchEffect(() => {
+  if (isTeamSpace.value) {
+    initWebsocket()
+  } else {
+    // 切到个人空间 / 公共图库时，把可能残留的连接和编辑状态清掉
+    disconnectWebsocket()
+    editingUser.value = undefined
+  }
+})
+
+// 组件销毁时释放连接：不释放的话，后端会一直保留这个会话
+onUnmounted(() => {
+  disconnectWebsocket()
+  editingUser.value = undefined
 })
 </script>
 
