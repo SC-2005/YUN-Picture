@@ -33,7 +33,6 @@
         :image-url="picture?.url"
         :picture="picture"
         :space-id="spaceId"
-        :space="space"
         :on-success="onPictureEditSuccess"
       />
       <ImageOutPainting
@@ -93,14 +92,13 @@ import PictureUpload from '@/components/PictureUpload.vue'
 import UrlPictureUpload from '@/components/UrlPictureUpload.vue'
 import ImageCropper from '@/components/ImageCropper.vue'
 import ImageOutPainting from '@/components/ImageOutPainting.vue'
-import { computed, h, onMounted, reactive, ref, watchEffect } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   editPictureUsingPost,
   getPictureVoByIdUsingGet,
   listPictureTagCategoryUsingGet,
 } from '@/api/pictureController.ts'
-import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
 import { useRoute, useRouter } from 'vue-router'
 import { toApiId } from '@/utils'
 import { EditOutlined, FullscreenOutlined } from '@ant-design/icons-vue'
@@ -124,36 +122,6 @@ const uploadType = ref<'file' | 'url'>('file')
 const spaceId = computed(() => {
   const id = route.query?.spaceId
   return id == null || id === '' ? undefined : toApiId(id)
-})
-
-/**
- * 当前图片所属空间
- *
- * 图片编辑组件靠它判断是不是团队空间，进而决定要不要开启协同编辑（WebSocket）。
- * 公共图库的图片没有 spaceId，不需要查，取不到值组件自然按「非团队空间」处理。
- */
-const space = ref<API.SpaceVO>()
-
-/**
- * 获取空间信息
- *
- * watchEffect 追踪 spaceId：从空间详情页跳进来时 spaceId 是可以直接读到的，
- * 但保留 watchEffect 能让「刷新页面 / 切换路由参数」这些场景也自动重新拉取。
- */
-const fetchSpace = async () => {
-  const id = spaceId.value
-  if (id == null) {
-    space.value = undefined
-    return
-  }
-  const res = await getSpaceVoByIdUsingGet({ id })
-  if (res.data.code === 0 && res.data.data) {
-    space.value = res.data.data
-  }
-}
-
-watchEffect(() => {
-  fetchSpace()
 })
 
 /**
