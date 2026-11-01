@@ -1,0 +1,22 @@
+# 注意：生产环境后端现在由宝塔「Java项目」`yu-picture` 管理，
+# 实际运行的服务名是 `spring_yu-picture`（宝塔自动生成）。
+# 本文件仅在没有宝塔 Java 项目的机器上作为兜底；deploy.sh 检测到
+# spring_yu-picture 时不会安装/启用本单元，避免两个服务抢 8123。
+[Unit]
+Description=Yu Picture Backend
+After=network.target
+
+[Service]
+Type=simple
+User=yu-picture
+Group=yu-picture
+EnvironmentFile=/etc/yu-picture/env
+WorkingDirectory=/opt/yu-picture
+ExecStart=/usr/bin/java -Xms512m -Xmx1024m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/opt/yu-picture -Duser.timezone=Asia/Shanghai -Dfile.encoding=UTF-8 -jar /opt/yu-picture/app.jar
+SuccessExitStatus=143
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
