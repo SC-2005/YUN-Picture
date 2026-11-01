@@ -8,8 +8,6 @@
 ![Vite](https://img.shields.io/badge/Vite-6-646cff)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-**在线体验：** http://123.207.58.189
-
 ---
 
 ## 📖 项目简介
