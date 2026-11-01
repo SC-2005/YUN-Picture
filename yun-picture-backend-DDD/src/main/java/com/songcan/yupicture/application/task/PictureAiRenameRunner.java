@@ -66,9 +66,10 @@ public class PictureAiRenameRunner implements ApplicationRunner {
     private int concurrency;
 
     /**
-     * COS 开了 Referer 防盗链，下载时必须带站点 Referer
+     * COS 开了 Referer 防盗链，下载时必须带站点 Referer。
+     * 生产环境通过 `picture.ai-rename.referer` 配置实际站点地址。
      */
-    @Value("${picture.ai-rename.referer:http://123.207.58.189/}")
+    @Value("${picture.ai-rename.referer:http://localhost/}")
     private String referer;
 
     @Resource
